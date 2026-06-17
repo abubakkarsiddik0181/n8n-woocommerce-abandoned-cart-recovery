@@ -1,0 +1,729 @@
+{
+  "name": "E-commerce Abandoned Cart Recovery",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "abandoned-cart",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "id": "7a73131d-73d4-4063-a793-534aa99b2722",
+      "name": "Webhook",
+      "webhookId": "abandoned-cart"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body;\n\nconst timestamp = new Date(parseInt(body.timestamp) * 1000);\nconst abandonedTime = timestamp.toLocaleString('en-US', {\n  year: 'numeric',\n  month: '2-digit',\n  day: '2-digit',\n  hour: '2-digit',\n  minute: '2-digit',\n  second: '2-digit',\n  timeZone: 'Asia/Dhaka'\n});\n\nconst product = body.product_details[0];\n\nreturn [{\n  json: {\n    customer_name: `${body.billing_first_name} ${body.billing_last_name}`.trim(),\n    email: body.email_id,\n    product: product.product_name,\n    quantity: product.quantity,\n    cart_value: `$${body.total}`,\n    status: \"Pending\",\n    abandoned_time: abandonedTime,\n    reminder_sent: \"No\",\n    discount_sent: \"No\",\n    checkout_link: body.checkout_link,\n    user_type: body.user_type\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "id": "11f173ca-6c80-4cff-b1f3-ccd5e73bb62f",
+      "name": "data cleaning"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Abandoned Cart Tracker"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Customer Name": "={{ $json.customer_name }}",
+            "Email": "={{ $json.email }}",
+            "Product": "={{ $json.product }}",
+            "Cart Value": "={{ $json.cart_value }}",
+            "Status": "={{ $json.status }}",
+            "Cart Abandoned Time": "={{ $json.abandoned_time }}",
+            "Reminder Sent": "={{ $json.reminder_sent }}",
+            "Discount Sent": "={{ $json.discount_sent }}",
+            "Checkout Link": "={{ $json.checkout_link }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {"id": "Customer Name", "displayName": "Customer Name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Product", "displayName": "Product", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Cart Value", "displayName": "Cart Value", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Cart Abandoned Time", "displayName": "Cart Abandoned Time", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Reminder Sent", "displayName": "Reminder Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Discount Sent", "displayName": "Discount Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Checkout Link", "displayName": "Checkout Link", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [448, 0],
+      "id": "49d47dac-a6ac-404b-aaf4-6808c72be802",
+      "name": "customer data save in sheet"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [672, 0],
+      "id": "ef4f3fc3-4e5e-41f2-b2d2-7cccf4796a06",
+      "name": "wait 30 minutes",
+      "webhookId": "wait-30-minutes"
+    },
+    {
+      "parameters": {
+        "url": "https://YOUR_WORDPRESS_SITE/wp-json/wc/v3/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "email", "value": "={{ $json.Email }}"},
+            {"name": "status", "value": "completed,processing"},
+            {"name": "per_page", "value": "1"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [896, 0],
+      "id": "43870bc2-acdb-4a02-b945-7730d53d527a",
+      "name": "HTTP Request",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [
+            {
+              "id": "7c8aa6e4-b4d6-4d4f-af91-dc8d14f7b2e1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": 0,
+              "operator": {"type": "string", "operation": "empty", "singleValue": true}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1120, 0],
+      "id": "96dd45f0-7e7e-4df1-8132-82d6b79243aa",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('wait 30 minutes').item.json.Email }}",
+        "subject": "={{ $('wait 30 minutes').item.json['Customer Name'] }}, you left something in your cart!",
+        "message": "=<!DOCTYPE html>\n<html>\n<head></head>\n<body style=\"margin:0;padding:0;background-color:#f3f4f6;font-family:Arial,sans-serif;\">\n  <div style=\"max-width:560px;margin:30px auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;\">\n    <div style=\"background:#1a56db;padding:2rem;text-align:center;\">\n      <h1 style=\"color:#ffffff;margin:0;font-size:20px;font-weight:600;\">You left something behind</h1>\n      <p style=\"color:rgba(255,255,255,0.8);margin:0.5rem 0 0;font-size:14px;\">Your cart is saved and waiting for you</p>\n    </div>\n    <div style=\"padding:2rem;\">\n      <p style=\"color:#111827;font-size:15px;margin:0 0 1rem;\">Hi <strong>{{ $('wait 30 minutes').item.json['Customer Name'] }}</strong>,</p>\n      <p style=\"color:#6b7280;font-size:14px;line-height:1.7;margin:0 0 1.5rem;\">We noticed you left an item in your cart. Your cart is still saved and waiting for you!</p>\n      <div style=\"border:1px solid #e5e7eb;border-radius:10px;padding:1.25rem;margin-bottom:1.5rem;\">\n        <p style=\"font-size:11px;color:#9ca3af;margin:0 0 0.75rem;text-transform:uppercase;\">Your cart</p>\n        <p style=\"font-weight:600;font-size:14px;margin:0;color:#111827;\">{{ $('wait 30 minutes').item.json.Product }}</p>\n        <p style=\"font-weight:600;font-size:16px;color:#1a56db;margin:0.5rem 0 0;\">{{ $('wait 30 minutes').item.json['Cart Value'] }}</p>\n      </div>\n      <a href=\"{{ $('wait 30 minutes').item.json['Checkout Link'] }}\" style=\"display:block;background:#1a56db;color:#ffffff;text-decoration:none;padding:14px;border-radius:8px;text-align:center;font-size:15px;font-weight:600;margin-bottom:1rem;\">Complete My Purchase</a>\n    </div>\n    <div style=\"border-top:1px solid #e5e7eb;padding:1.25rem 2rem;text-align:center;background:#f9fafb;\">\n      <p style=\"font-size:12px;color:#9ca3af;margin:0;\">You received this email because you left items in your cart.</p>\n    </div>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [1344, -96],
+      "id": "069fe33d-85ca-4522-a786-dc6c0006a370",
+      "name": "Send Reminder Email",
+      "webhookId": "send-reminder-email"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Abandoned Cart Tracker"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('wait 30 minutes').item.json.Email }}",
+            "Reminder Sent": "yes"
+          },
+          "matchingColumns": ["Email"],
+          "schema": [
+            {"id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Reminder Sent", "displayName": "Reminder Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1568, -96],
+      "id": "f8b9a1df-18e0-438c-bdc9-38280b0fe3e2",
+      "name": "Update Reminder Sent"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Abandoned Cart Tracker"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('wait 30 minutes').item.json.Email }}",
+            "Status": "recovered"
+          },
+          "matchingColumns": ["Email"],
+          "schema": [
+            {"id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1344, 96],
+      "id": "d2f129df-9125-4c9d-afea-169f9402bfe0",
+      "name": "Update Status Recovered (30min)"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "minutes", "minutesInterval": 5}]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 784],
+      "id": "3c0f9b1d-1abe-4cb4-a984-b7d378ab2091",
+      "name": "Schedule Trigger - Discount Check"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Abandoned Cart Tracker"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "filtersUI": {
+          "values": [
+            {"lookupColumn": "Reminder Sent", "lookupValue": "yes"},
+            {"lookupColumn": "Discount Sent", "lookupValue": "no"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [224, 784],
+      "id": "937cf6c5-2db3-49e6-b9c4-bd6f81a19215",
+      "name": "Get Pending Discount Rows"
+    },
+    {
+      "parameters": {"options": {}},
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [448, 784],
+      "id": "9252ed08-b51a-4aab-aa52-1a414a09172f",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $input.first().json;\nconst abandonedTime = new Date(row['Cart Abandoned Time']);\nconst now = new Date();\nconst hoursPassed = (now - abandonedTime) / (1000 * 60 * 60);\n\nreturn [{\n  json: {\n    ...row,\n    hours_passed: hoursPassed.toFixed(2),\n    ready_for_discount: hoursPassed >= 24 ? \"Yes\" : \"No\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 496],
+      "id": "0cd99863-f53c-4dbe-9b71-aa441be46f72",
+      "name": "Check 24 Hours Passed"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [
+            {
+              "id": "657bfc18-0369-46e3-b234-94fe53b87193",
+              "leftValue": "={{ $json.ready_for_discount }}",
+              "rightValue": "No",
+              "operator": {"type": "string", "operation": "equals"}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [896, 496],
+      "id": "248e1707-11bb-40a4-baae-053f678772fa",
+      "name": "If 24 Hours Passed"
+    },
+    {
+      "parameters": {
+        "url": "https://YOUR_WORDPRESS_SITE/wp-json/wc/v3/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "email", "value": "={{ $json.Email }}"},
+            {"name": "status", "value": "completed,processing"},
+            {"name": "per_page", "value": "1"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1120, 416],
+      "id": "23adb541-5c78-4414-b04c-80f7c0ce1b4a",
+      "name": "Check Order Exists",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [
+            {
+              "id": "7c8aa6e4-b4d6-4d4f-af91-dc8d14f7b2e1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": 0,
+              "operator": {"type": "number", "operation": "empty", "singleValue": true}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1344, 416],
+      "id": "7ae519c2-5bd4-455b-8401-42b0b3258995",
+      "name": "If No Order"
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $('If 24 Hours Passed').item.json['Email'];\nconst couponCode = 'SAVE10_' + email.split('@')[0].toUpperCase() + '_' + Date.now();\nconst expiryDate = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    coupon_code: couponCode,\n    email: email,\n    expiry_date: expiryDate,\n    customer_name: $('If 24 Hours Passed').item.json['Customer Name'],\n    product: $('If 24 Hours Passed').item.json['Product'],\n    cart_value: $('If 24 Hours Passed').item.json['Cart Value'],\n    checkout_link: $('If 24 Hours Passed').item.json['Checkout Link']\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1568, 320],
+      "id": "02bbbac4-7993-4f6e-ad0b-493e02640147",
+      "name": "Prepare Coupon Data"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_WORDPRESS_SITE/wp-json/wc/v3/coupons",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"code\": \"{{ $json.coupon_code }}\",\n  \"discount_type\": \"percent\",\n  \"amount\": \"10\",\n  \"individual_use\": true,\n  \"usage_limit\": 1,\n  \"usage_limit_per_user\": 1,\n  \"email_restrictions\": [\"{{ $json.email }}\"],\n  \"expiry_date\": \"{{ $json.expiry_date }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1792, 320],
+      "id": "44b47a84-ae8f-4fc7-891d-fc90fb309212",
+      "name": "Create Coupon in WooCommerce"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('If 24 Hours Passed').item.json.Email }}",
+        "subject": "=Special offer just for you, {{ $('Prepare Coupon Data').item.json.customer_name }}!",
+        "message": "=<!DOCTYPE html>\n<html>\n<head></head>\n<body style=\"margin:0;padding:0;background-color:#f3f4f6;font-family:Arial,sans-serif;\">\n  <div style=\"max-width:560px;margin:30px auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;\">\n    <div style=\"background:#1a56db;padding:2rem;text-align:center;\">\n      <h1 style=\"color:#ffffff;margin:0;font-size:20px;font-weight:600;\">Special Offer Just For You</h1>\n      <p style=\"color:rgba(255,255,255,0.8);margin:0.5rem 0 0;font-size:14px;\">We saved you a little something</p>\n    </div>\n    <div style=\"padding:2rem;\">\n      <p style=\"color:#111827;font-size:15px;margin:0 0 1rem;\">Hi <strong>{{ $('Prepare Coupon Data').item.json.customer_name }}</strong>,</p>\n      <p style=\"color:#6b7280;font-size:14px;line-height:1.7;margin:0 0 1.5rem;\">Here is an exclusive <strong style=\"color:#1a56db;\">10% discount</strong> just for you!</p>\n      <div style=\"background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:1.5rem;margin-bottom:1.5rem;text-align:center;\">\n        <p style=\"font-size:12px;color:#6b7280;margin:0 0 0.5rem;text-transform:uppercase;\">Your discount code</p>\n        <p style=\"font-size:28px;font-weight:700;color:#1a56db;margin:0;\">{{ $json.code }}</p>\n        <p style=\"font-size:12px;color:#6b7280;margin:0.5rem 0 0;\">Valid for 48 hours only</p>\n      </div>\n      <div style=\"border:1px solid #e5e7eb;border-radius:10px;padding:1.25rem;margin-bottom:1.5rem;\">\n        <p style=\"font-weight:600;font-size:14px;margin:0;color:#111827;\">{{ $('Prepare Coupon Data').item.json.product }}</p>\n        <p style=\"font-weight:600;font-size:16px;color:#1a56db;margin:0.5rem 0 0;\">{{ $('Prepare Coupon Data').item.json.cart_value }}</p>\n      </div>\n      <a href=\"{{ $('Prepare Coupon Data').item.json.checkout_link }}\" style=\"display:block;background:#1a56db;color:#ffffff;text-decoration:none;padding:14px;border-radius:8px;text-align:center;font-size:15px;font-weight:600;\">Claim My Discount</a>\n    </div>\n    <div style=\"border-top:1px solid #e5e7eb;padding:1.25rem 2rem;text-align:center;background:#f9fafb;\">\n      <p style=\"font-size:12px;color:#9ca3af;margin:0;\">You received this email because you left items in your cart.</p>\n    </div>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [2016, 320],
+      "id": "843b05ba-0c25-42ac-9fa2-fce2af7f2555",
+      "name": "Send Discount Email",
+      "webhookId": "send-discount-email"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Abandoned Cart Tracker"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Prepare Coupon Data').item.json.email }}",
+            "Discount Sent": "yes"
+          },
+          "matchingColumns": ["Email"],
+          "schema": [
+            {"id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Discount Sent", "displayName": "Discount Sent", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [2240, 496],
+      "id": "630c46ab-032f-47a9-a4a1-d934750c2bc0",
+      "name": "Update Discount Sent"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Abandoned Cart Tracker"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Check 24 Hours Passed').item.json.Email }}",
+            "Status": "recovered"
+          },
+          "matchingColumns": ["Email"],
+          "schema": [
+            {"id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1568, 512],
+      "id": "4b4abc03-2d44-4d0f-8e7e-9856b808d523",
+      "name": "Update Status Recovered (24hr)"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "minutes", "minutesInterval": 5}]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 1312],
+      "id": "94698ea3-e0df-4676-8811-02aa8565f95c",
+      "name": "Schedule Trigger - Lost Check"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Abandoned Cart Tracker"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "filtersUI": {
+          "values": [
+            {"lookupColumn": "Discount Sent", "lookupValue": "yes"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [224, 1312],
+      "id": "867cf19a-a784-43bd-9a87-9be0ea0aeca2",
+      "name": "Get Discount Sent Rows"
+    },
+    {
+      "parameters": {"options": {}},
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [448, 1312],
+      "id": "9691e165-ccd1-4fba-ae77-8b8d19c8e230",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $input.first().json;\nconst abandonedTime = new Date(row['Cart Abandoned Time']);\nconst now = new Date();\nconst hoursPassed = (now - abandonedTime) / (1000 * 60 * 60);\n\nif (hoursPassed < 72) {\n  return [];\n}\n\nreturn [$input.first()];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 1008],
+      "id": "dc3c19b8-08d7-4cbf-a610-8961bb9594b6",
+      "name": "Check 72 Hours Passed",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [
+            {
+              "id": "7c8aa6e4-b4d6-4d4f-af91-dc8d14f7b2e1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": 0,
+              "operator": {"type": "string", "operation": "empty", "singleValue": true}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [896, 1008],
+      "id": "b75f6127-6d4f-4425-a5cc-be374e713b1a",
+      "name": "If Final Check"
+    },
+    {
+      "parameters": {
+        "url": "https://YOUR_WORDPRESS_SITE/wp-json/wc/v3/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "email", "value": "={{ $json.Email }}"},
+            {"name": "status", "value": "completed,processing"},
+            {"name": "per_page", "value": "1"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1120, 1008],
+      "id": "232ca201-e2b7-45f8-832a-7c16e066eee5",
+      "name": "Final Order Check",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [
+            {
+              "id": "7c8aa6e4-b4d6-4d4f-af91-dc8d14f7b2e1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": 0,
+              "operator": {"type": "string", "operation": "empty", "singleValue": true}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1344, 1008],
+      "id": "3c48864a-200f-430d-9a3a-80ba6fe8187a",
+      "name": "If Lost or Recovered"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Abandoned Cart Tracker"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Loop Over Items1').item.json.Email }}",
+            "Status": "lost"
+          },
+          "matchingColumns": ["Email"],
+          "schema": [
+            {"id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1568, 1072],
+      "id": "ef7e4e87-fe8b-4d83-b165-91f79cd5fe57",
+      "name": "Update Status Lost"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Abandoned Cart Tracker"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Loop Over Items1').item.json.Email }}",
+            "Status": "recovered"
+          },
+          "matchingColumns": ["Email"],
+          "schema": [
+            {"id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1568, 1264],
+      "id": "27302b29-58db-47ef-b9b7-a3b76455105a",
+      "name": "Update Status Recovered (Final)"
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "data cleaning", "type": "main", "index": 0}]]},
+    "data cleaning": {"main": [[{"node": "customer data save in sheet", "type": "main", "index": 0}]]},
+    "customer data save in sheet": {"main": [[{"node": "wait 30 minutes", "type": "main", "index": 0}]]},
+    "wait 30 minutes": {"main": [[{"node": "HTTP Request", "type": "main", "index": 0}]]},
+    "HTTP Request": {"main": [[{"node": "If", "type": "main", "index": 0}]]},
+    "If": {
+      "main": [
+        [{"node": "Send Reminder Email", "type": "main", "index": 0}],
+        [{"node": "Update Status Recovered (30min)", "type": "main", "index": 0}]
+      ]
+    },
+    "Send Reminder Email": {"main": [[{"node": "Update Reminder Sent", "type": "main", "index": 0}]]},
+    "Schedule Trigger - Discount Check": {"main": [[{"node": "Get Pending Discount Rows", "type": "main", "index": 0}]]},
+    "Get Pending Discount Rows": {"main": [[{"node": "Loop Over Items", "type": "main", "index": 0}]]},
+    "Loop Over Items": {
+      "main": [
+        [],
+        [{"node": "Check 24 Hours Passed", "type": "main", "index": 0}]
+      ]
+    },
+    "Check 24 Hours Passed": {"main": [[{"node": "If 24 Hours Passed", "type": "main", "index": 0}]]},
+    "If 24 Hours Passed": {
+      "main": [
+        [{"node": "Loop Over Items", "type": "main", "index": 0}],
+        [{"node": "Check Order Exists", "type": "main", "index": 0}]
+      ]
+    },
+    "Check Order Exists": {"main": [[{"node": "If No Order", "type": "main", "index": 0}]]},
+    "If No Order": {
+      "main": [
+        [{"node": "Prepare Coupon Data", "type": "main", "index": 0}],
+        [{"node": "Update Status Recovered (24hr)", "type": "main", "index": 0}]
+      ]
+    },
+    "Prepare Coupon Data": {"main": [[{"node": "Create Coupon in WooCommerce", "type": "main", "index": 0}]]},
+    "Create Coupon in WooCommerce": {"main": [[{"node": "Send Discount Email", "type": "main", "index": 0}]]},
+    "Send Discount Email": {"main": [[{"node": "Update Discount Sent", "type": "main", "index": 0}]]},
+    "Update Discount Sent": {"main": [[{"node": "Loop Over Items", "type": "main", "index": 0}]]},
+    "Update Status Recovered (24hr)": {"main": [[{"node": "Loop Over Items", "type": "main", "index": 0}]]},
+    "Schedule Trigger - Lost Check": {"main": [[{"node": "Get Discount Sent Rows", "type": "main", "index": 0}]]},
+    "Get Discount Sent Rows": {"main": [[{"node": "Loop Over Items1", "type": "main", "index": 0}]]},
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [{"node": "Check 72 Hours Passed", "type": "main", "index": 0}]
+      ]
+    },
+    "Check 72 Hours Passed": {"main": [[{"node": "If Final Check", "type": "main", "index": 0}]]},
+    "If Final Check": {
+      "main": [
+        [{"node": "Loop Over Items1", "type": "main", "index": 0}],
+        [{"node": "Final Order Check", "type": "main", "index": 0}]
+      ]
+    },
+    "Final Order Check": {"main": [[{"node": "If Lost or Recovered", "type": "main", "index": 0}]]},
+    "If Lost or Recovered": {
+      "main": [
+        [{"node": "Update Status Lost", "type": "main", "index": 0}],
+        [{"node": "Update Status Recovered (Final)", "type": "main", "index": 0}]
+      ]
+    },
+    "Update Status Lost": {"main": [[{"node": "Loop Over Items1", "type": "main", "index": 0}]]},
+    "Update Status Recovered (Final)": {"main": [[{"node": "Loop Over Items1", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "meta": {"templateCredsSetupCompleted": true},
+  "tags": []
+}
